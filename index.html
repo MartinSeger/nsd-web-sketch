@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Skizzier-WebApp mit WMS & Snapshot</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css">
+  <title>WebApp mit OSM & Skizze</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css">
   <style>
     html, body, #map {
       margin: 0;
@@ -41,7 +42,7 @@
   <button id="snapshotBtn">Snapshot in Zwischenablage</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/ol@latest/ol.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js"></script>
 <script>
   const map = new ol.Map({
     target: 'map',
@@ -106,18 +107,6 @@
       addDrawInteraction();
     }
   };
-
-  const wmsSource = new ol.source.TileWMS({
-    url: 'https://webgis.energie360.ch/ags_alpha/services/e360_wms/e360_gas_wms/MapServer/WMSServer',
-    params: {
-      'LAYERS': 'e360_gas',
-      'TILED': true
-    },
-    serverType: 'geoserver',
-    crossOrigin: 'anonymous'
-  });
-  const wmsLayer = new ol.layer.Tile({ source: wmsSource });
-  map.addLayer(wmsLayer);
 
   const eraseBtn = document.getElementById('eraseBtn');
   let select = null;
