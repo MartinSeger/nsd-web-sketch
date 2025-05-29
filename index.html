@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Skizzier-WebApp mit WMS & Snapshot</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css">
+  <style>
+    html, body, #map {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .toolbar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      z-index: 1000;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+    .toolbar button, .toolbar select, .toolbar input {
+      margin-top: 5px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="toolbar">
+  <label>Farbe: <input type="color" id="color" value="#ff0000"></label><br>
+  <label>Breite: <input type="number" id="width" value="2" min="1" max="10"></label><br>
+  <button id="saveStyle">Stil speichern</button>
+  <select id="styleSelect"><option>Favoriten</option></select>
+  <button id="eraseBtn">Radierer aktivieren</button>
+  <button id="snapshotBtn">Snapshot in Zwischenablage</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ol@latest/ol.js"></script>
+<script>
+  const map = new ol.Map({
+    target: 'map',
+    layers: [
+      new ol.layer.Tile({
+        source: new ol.source.OSM()
+      })
+    ],
+    view: new ol.View({
+      center: ol.proj.fromLonLat([8.5417, 47.3769]),
+      zoom: 13
+    })
+  });
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      map.getView().setCenter(ol.proj.fromLonLat([
+        pos.coords.longitude,
+        pos.coords.latitude
+      ]));
+    });
+  }
+
+  const vectorSource = new ol.source.Vector();
+  const vectorLayer = new ol.layer.Vector({ source: vectorSource });
+  map.addLayer(vectorLayer);
+
+  let draw;
+  function addDrawInteraction() {
+    const color = document.getElementById('color').value;
+    const width = parseInt(document.getElementById('width').value);
+    const style = new ol.style.Style({
+      stroke: new ol.style.Stroke({ color, width })
+    });
+    draw = new ol.interaction.Draw({
+      source: vectorSource,
+      type: 'LineString',
+      freehand: true,
+      style
+    });
+    map.addInteraction(draw);
+  }
+  addDrawInteraction();
+
+  const styleSelect = document.getElementById('styleSelect');
+  document.getElementById('saveStyle').onclick = () => {
+    const color = document.getElementById('color').value;
+    const width = document.getElementById('width').value;
+    const key = `${color}_${width}`;
+    localStorage.setItem(key, JSON.stringify({ color, width }));
+    const option = new Option(key, key);
+    styleSelect.add(option);
+  };
+
+  styleSelect.onchange = () => {
+    const val = styleSelect.value;
+    if (val && localStorage.getItem(val)) {
+      const s = JSON.parse(localStorage.getItem(val));
+      document.getElementById('color').value = s.color;
+      document.getElementById('width').value = s.width;
+      map.removeInteraction(draw);
+      addDrawInteraction();
+    }
+  };
+
+  const wmsSource = new ol.source.TileWMS({
+    url: 'https://webgis.energie360.ch/ags_alpha/services/e360_wms/e360_gas_wms/MapServer/WMSServer',
+    params: {
+      'LAYERS': 'e360_gas',
+      'TILED': true
+    },
+    serverType: 'geoserver',
+    crossOrigin: 'anonymous'
+  });
+  const wmsLayer = new ol.layer.Tile({ source: wmsSource });
+  map.addLayer(wmsLayer);
+
+  const eraseBtn = document.getElementById('eraseBtn');
+  let select = null;
+  let modify = null;
+
+  function enableEraseMode() {
+    map.removeInteraction(draw);
+    if (select) map.removeInteraction(select);
+    if (modify) map.removeInteraction(modify);
+
+    select = new ol.interaction.Select();
+    modify = new ol.interaction.Modify({ features: select.getFeatures() });
+
+    select.on('select', e => {
+      e.selected.forEach(f => vectorSource.removeFeature(f));
+      select.getFeatures().clear();
+    });
+
+    map.addInteraction(select);
+    map.addInteraction(modify);
+  }
+
+  eraseBtn.onclick = () => {
+    enableEraseMode();
+  };
+
+  const snapshotBtn = document.getElementById('snapshotBtn');
+  snapshotBtn.onclick = async () => {
+    try {
+      const canvas = map.getViewport().querySelector('canvas');
+      if (!canvas) throw new Error("Kein Canvas gefunden");
+      canvas.toBlob(async blob => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          alert("Snapshot wurde in die Zwischenablage kopiert!");
+        } catch (err) {
+          alert("Fehler beim Kopieren des Snapshots: " + err);
+        }
+      }, 'image/png');
+    } catch (e) {
+      alert("Snapshot nicht möglich: " + e.message);
+    }
+  };
+</script>
+</body>
+</html>
